@@ -1,96 +1,95 @@
 import { supabase } from './supabaseClient';
 
-// 1. Função que salva a jogada no banco
-async function registrarJogada(cor: string) {
-  const { error } = await supabase
-    .from('historico_jogadas')
-    .insert([{ cor: cor }]);
+// Configurações
+const API_URL = 'https://www.bestblaze.com.br/doubleRodadasDia';
+const PROXY = 'https://api.allorigins.win/get?url='; // Para pular o bloqueio de site
 
-  if (error) console.error('Erro ao salvar:', error);
-  else renderDashboard(); // Atualiza a tela toda vez que salva
+// 1. Função para converter número em Cor (Padrão Blaze)
+function mapearCor(numero: number): string {
+  if (numero === 0) return 'Branco';
+  if (numero >= 1 && numero <= 7) return 'Vermelho';
+  return 'Preto';
 }
 
-// 2. Função que analisa a sequência (Maré)
-function analisarTendencia(historico: any[]) {
-  if (!historico || historico.length === 0) return { cor: 'Nenhuma', streak: 0, distanciaBranco: 'N/A' };
+// 2. Função que busca no site e salva no Supabase
+async function buscarRodadasReais() {
+  try {
+    const response = await fetch(`${PROXY}${encodeURIComponent(API_URL)}`);
+    const json = await response.json();
+    const dados = JSON.parse(json.contents); // O proxy entrega dentro de 'contents'
 
+    // Pegamos as últimas 20 rodadas que o site forneceu
+    const rodadas = dados.slice(0, 20);
+
+    for (const r of rodadas) {
+      const corNome = mapearCor(r.color);
+      
+      // Tenta inserir. Se o id_externo já existir, o Supabase ignora (evita duplicados)
+      await supabase
+        .from('historico_jogadas')
+        .insert([{ 
+          id_externo: r.id || `${r.created_at}_${r.color}`, 
+          cor: corNome, 
+          numero: r.roll,
+          criado_em: r.created_at 
+        }]);
+    }
+    
+    renderDashboard();
+  } catch (err) {
+    console.error("Erro ao buscar dados reais:", err);
+  }
+}
+
+// 3. Lógica de Análise de Maré
+function analisarTendencia(historico: any[]) {
+  if (!historico || historico.length === 0) return { cor: '---', streak: 0 };
   const ultima = historico[0].cor;
   let streak = 1;
-
   for (let i = 1; i < historico.length; i++) {
     if (historico[i].cor === ultima) streak++;
     else break;
   }
-
-  const ultimoBranco = historico.findIndex((h: any) => h.cor === 'Branco');
-  
-  return {
-    cor: ultima,
-    streak: streak,
-    distanciaBranco: ultimoBranco === -1 ? 'Não saiu recentemente' : `${ultimoBranco} rodadas atrás`
-  };
+  return { cor: ultima, streak: streak };
 }
 
-// 3. O NOVO Dashboard Turbinado
+// 4. Renderização do Dashboard
 async function renderDashboard() {
-  const { data, error } = await supabase
+  const { data: historico } = await supabase
     .from('historico_jogadas')
-    .select('cor, criado_em')
-    .order('id', { ascending: false })
-    .limit(100); // Puxando as últimas 100 jogadas
+    .select('*')
+    .order('criado_em', { ascending: false })
+    .limit(100);
 
-  if (error || !data) return;
+  if (!historico) return;
 
-  const tendencia = analisarTendencia(data);
-  const total = data.length;
-
-  // Cálculo de Frequência
-  const qtdVermelho = data.filter((d: any) => d.cor === 'Vermelho').length;
-  const qtdPreto = data.filter((d: any) => d.cor === 'Preto').length;
-  const qtdBranco = data.filter((d: any) => d.cor === 'Branco').length;
-
-  const pctVermelho = ((qtdVermelho / total) * 100).toFixed(1);
-  const pctPreto = ((qtdPreto / total) * 100).toFixed(1);
-  const pctBranco = ((qtdBranco / total) * 100).toFixed(1);
+  const total = historico.length;
+  const v = historico.filter(d => d.cor === 'Vermelho').length;
+  const p = historico.filter(d => d.cor === 'Preto').length;
+  const b = historico.filter(d => d.cor === 'Branco').length;
+  const tendencia = analisarTendencia(historico);
 
   const app = document.querySelector<HTMLDivElement>('#app')!;
-
-  // Interface Visual
   app.innerHTML = `
-    <div style="font-family: sans-serif; padding: 20px; max-width: 800px; margin: auto;">
-      <h2>📊 Double Analytics - Visão em Tempo Real</h2>
-
-      <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-        <div style="flex: 1; background: #ffebee; padding: 15px; border-radius: 8px; text-align: center; border-bottom: 4px solid red;">
-          <h3 style="margin: 0 0 10px 0; color: #d32f2f;">🔴 Vermelho</h3>
-          <p style="font-size: 28px; font-weight: bold; margin: 0;">${pctVermelho}%</p>
-          <small style="color: #666;">Teórico: 46.6%</small>
-        </div>
-        
-        <div style="flex: 1; background: #f5f5f5; padding: 15px; border-radius: 8px; text-align: center; border-bottom: 4px solid black;">
-          <h3 style="margin: 0 0 10px 0; color: #212121;">⚫ Preto</h3>
-          <p style="font-size: 28px; font-weight: bold; margin: 0;">${pctPreto}%</p>
-          <small style="color: #666;">Teórico: 46.6%</small>
-        </div>
-
-        <div style="flex: 1; background: #ffffff; border: 1px solid #ddd; padding: 15px; border-radius: 8px; text-align: center; border-bottom: 4px solid gray;">
-          <h3 style="margin: 0 0 10px 0; color: #757575;">⚪ Branco</h3>
-          <p style="font-size: 28px; font-weight: bold; margin: 0;">${pctBranco}%</p>
-          <small style="color: #666;">Teórico: 6.6%</small>
-        </div>
+    <div style="font-family: sans-serif; padding: 20px; max-width: 900px; margin: auto;">
+      <h2 style="color: #333;">📡 Monitor Real: BestBlaze -> Supabase</h2>
+      
+      <div style="display: flex; gap: 15px; margin-bottom: 25px;">
+        <div class="card red">🔴 Red: ${((v/total)*100).toFixed(1)}%</div>
+        <div class="card black">⚫ Black: ${((p/total)*100).toFixed(1)}%</div>
+        <div class="card white">⚪ White: ${((b/total)*100).toFixed(1)}%</div>
       </div>
 
-      <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 5px solid #2196f3;">
-        <h3 style="margin-top: 0; color: #0d47a1;">🔥 Radar de Tendência (Maré)</h3>
-        <p style="margin: 5px 0;">Cor dominante: <strong>${tendencia.cor}</strong> (${tendencia.streak}x seguidas)</p>
-        <p style="margin: 5px 0;">Último Branco: <strong>${tendencia.distanciaBranco}</strong></p>
+      <div style="background: #e3f2fd; padding: 20px; border-radius: 12px; border-left: 6px solid #2196f3;">
+        <h3 style="margin:0">🔥 Tendência de Maré</h3>
+        <p style="font-size: 20px;">A cor <strong>${tendencia.cor}</strong> está saindo há <strong>${tendencia.streak}x</strong> rodadas.</p>
       </div>
 
-      <h3>Últimas ${total} Jogadas <small style="font-weight: normal; color: #666;">(Passe o mouse nas bolas para ver a hora)</small></h3>
-      <div style="display: flex; gap: 5px; flex-wrap: wrap; background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #eee;">
-        ${data.map((d: any) => `
-          <div class="bola ${d.cor}" title="Data: ${new Date(d.criado_em).toLocaleDateString('pt-BR')} às ${new Date(d.criado_em).toLocaleTimeString('pt-BR')}">
-            ${d.cor[0]}
+      <h3>Histórico Recente (Últimas 100)</h3>
+      <div class="grid-bolas">
+        ${historico.map(h => `
+          <div class="bola ${h.cor}" title="${h.criado_em}">
+            ${h.numero}
           </div>
         `).join('')}
       </div>
@@ -98,21 +97,6 @@ async function renderDashboard() {
   `;
 }
 
-// 4. O Motor (Simulação com as probabilidades reais da Blaze)
-setInterval(() => {
-  const n = Math.random() * 100;
-  let sorteio = '';
-
-  if (n <= 6.67) {
-    sorteio = 'Branco';
-  } else if (n <= 53.33) {
-    sorteio = 'Vermelho';
-  } else {
-    sorteio = 'Preto';
-  }
-  
-  registrarJogada(sorteio);
-}, 5000);
-
-// Inicia a primeira renderização
-renderDashboard();
+// Execução: Busca novos dados a cada 30 segundos
+setInterval(buscarRodadasReais, 30000);
+buscarRodadasReais(); // Busca inicial

@@ -1,14 +1,38 @@
+body { background-color: #f0f2f5; }
+.card {
+  flex: 1;
+  padding: 20px;
+  border-radius: 10px;
+  text-align: center;
+  font-size: 22px;
+  font-weight: bold;
+  color: white;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+.red { background: #d32f2f; }
+.black { background: #1a1a1a; }
+.white { background: #ffffff; color: #333; border: 1px solid #ddd; }
+
+.grid-bolas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+}
+
 .bola {
-  width: 40px;
-  height: 40px;
+  width: 35px;
+  height: 35px;
   border-radius: 50%;
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
-  margin: 5px;
-  color: white;
+  font-size: 12px;
   font-weight: bold;
+  color: white;
 }
-.Vermelho { background-color: #f44336; }
-.Preto { background-color: #212121; }
-.Branco { background-color: #ffffff; color: #000; border: 2px solid #ccc; }
+.Vermelho { background: #d32f2f; }
+.Preto { background: #1a1a1a; }
+.Branco { background: white; color: black; border: 1px solid #ccc; }
