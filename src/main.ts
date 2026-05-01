@@ -1,139 +1,155 @@
 import { supabase } from './supabaseClient';
+import './style.css'; // Garante que o CSS será carregado
 
-// 1. Função que salva a jogada no banco
-async function registrarJogada(cor: string) {
-  const { error } = await supabase
-    .from('historico_jogadas')
-    .insert([{ cor: cor }]);
-
-  if (error) console.error('Erro ao salvar:', error);
-  else renderDashboard(); // Atualiza a tela toda vez que salva
+// 1. Tipagem Forte: Isso impede os erros de "undefined" que você estava tendo
+interface Jogada {
+  id?: string;
+  cor: string;
+  numero: string;
+  criado_em?: string;
 }
 
-// 2. Função que analisa a sequência (Maré)
-function analisarProbabilidades(historico: any[]) {
-  if (historico.length < 5) return { alerta: "Aguardando mais dados..." };
+interface Estatisticas {
+  total: number;
+  vermelho: number;
+  preto: number;
+  branco: number;
+  sequenciaCor: string;
+  sequenciaQtd: number;
+  rodadasSemBranco: number;
+}
 
-  // 1. Identifica a sequência atual
-  const ultimaCor = historico[0].cor;
-  let sequenciaAtual = 0;
-  for (let h of historico) {
-    if (h.cor === ultimaCor) sequenciaAtual++;
-    else break;
-  }
+// 2. Elementos da Interface (Buscando no HTML com segurança)
+const divEstatisticas = document.querySelector<HTMLDivElement>('#estatisticas');
+const divRadar = document.querySelector<HTMLDivElement>('#radar');
+const divHistorico = document.querySelector<HTMLDivElement>('#historico-lista');
 
-  // 2. Cálculo de Probabilidade de Quebra (Martingale/Maré)
-  // Baseado na probabilidade real: a chance de uma cor repetir 
-  // muitas vezes diminui exponencialmente.
-  const probQuebra = (1 - Math.pow(0.466, sequenciaAtual)) * 100;
-
-  // 3. Sugestão de Entrada
-  let sugestao = "Aguardar";
-  if (sequenciaAtual >= 3) {
-    const corContraria = ultimaCor === 'Vermelho' ? 'Preto' : 'Vermelho';
-    sugestao = `Possível entrada no ${corContraria} (Quebra de Maré)`;
-  }
-
-  return {
-    cor: ultimaCor,
-    streak: sequenciaAtual,
-    chanceQuebra: probQuebra.toFixed(1) + "%",
-    sugestao: sugestao
+// 3. Motor de Análise: Calcula probabilidades e tendências
+function analisarDados(historico: Jogada[]): Estatisticas {
+  const stats: Estatisticas = {
+    total: historico.length,
+    vermelho: 0,
+    preto: 0,
+    branco: 0,
+    sequenciaCor: 'Nenhuma',
+    sequenciaQtd: 0,
+    rodadasSemBranco: 0
   };
+
+  if (historico.length === 0) return stats;
+
+  // Contagem geral
+  historico.forEach(jogada => {
+    const cor = jogada.cor.toLowerCase();
+    if (cor === 'vermelho') stats.vermelho++;
+    if (cor === 'preto') stats.preto++;
+    if (cor === 'branco') stats.branco++;
+  });
+
+  // Cálculo da Maré (Sequência atual)
+  const ultimaCor = historico[0].cor.toLowerCase();
+  stats.sequenciaCor = ultimaCor;
+  for (const jogada of historico) {
+    if (jogada.cor.toLowerCase() === ultimaCor) {
+      stats.sequenciaQtd++;
+    } else {
+      break;
+    }
+  }
+
+  // Cálculo de distância do último branco
+  for (const jogada of historico) {
+    if (jogada.cor.toLowerCase() !== 'branco') {
+      stats.rodadasSemBranco++;
+    } else {
+      break;
+    }
+  }
+
+  return stats;
 }
 
- // 3. O NOVO Dashboard Turbinado
-function renderDashboard(historico: any[]) {
-  const containerHistorico = document.getElementById('historico-lista');
-  if (!containerHistorico) return;
+// 4. Renderização do Painel (Atualiza a tela)
+function atualizarPainel(historico: Jogada[]) {
+  const stats = analisarDados(historico);
 
-  containerHistorico.innerHTML = historico.map((jogada: any) => {
-    // Tratamos a cor para evitar erro de undefined
-    const corBase = jogada.cor ? jogada.cor.toLowerCase() : 'branco';
-    const numeroExibido = jogada.numero !== undefined ? jogada.numero : "";
+  // Calcula porcentagens de forma segura (evita divisão por zero resultando em NaN%)
+  const pct = (valor: number) => stats.total > 0 ? ((valor / stats.total) * 100).toFixed(1) : "0.0";
 
-    return `
-      <div class="bola-item ${corBase}">
-        <span class="numero-bola">${numeroExibido}</span>
+  // Renderiza Estatísticas
+  if (divEstatisticas) {
+    divEstatisticas.innerHTML = `
+      <div class="card card-vermelho">
+        <h3>🔴 Vermelho</h3>
+        <h2>${pct(stats.vermelho)}%</h2>
+      </div>
+      <div class="card card-preto">
+        <h3>⚫ Preto</h3>
+        <h2>${pct(stats.preto)}%</h2>
+      </div>
+      <div class="card card-branco">
+        <h3>⚪ Branco</h3>
+        <h2>${pct(stats.branco)}%</h2>
       </div>
     `;
-  }).join('');
-}
-
-  if (error || !data) return;
-
-  const tendencia = analisarTendencia(data);
-  const total = data.length;
-
-  // Cálculo de Frequência
-  const qtdVermelho = data.filter((d: any) => d.cor === 'Vermelho').length;
-  const qtdPreto = data.filter((d: any) => d.cor === 'Preto').length;
-  const qtdBranco = data.filter((d: any) => d.cor === 'Branco').length;
-
-  const pctVermelho = ((qtdVermelho / total) * 100).toFixed(1);
-  const pctPreto = ((qtdPreto / total) * 100).toFixed(1);
-  const pctBranco = ((qtdBranco / total) * 100).toFixed(1);
-
-  const app = document.querySelector<HTMLDivElement>('#app')!;
-
-  // Interface Visual
-  app.innerHTML = `
-    <div style="font-family: sans-serif; padding: 20px; max-width: 800px; margin: auto;">
-      <h2>📊 Double Analytics - Visão em Tempo Real</h2>
-
-      <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-        <div style="flex: 1; background: #ffebee; padding: 15px; border-radius: 8px; text-align: center; border-bottom: 4px solid red;">
-          <h3 style="margin: 0 0 10px 0; color: #d32f2f;">🔴 Vermelho</h3>
-          <p style="font-size: 28px; font-weight: bold; margin: 0;">${pctVermelho}%</p>
-          <small style="color: #666;">Teórico: 46.6%</small>
-        </div>
-        
-        <div style="flex: 1; background: #f5f5f5; padding: 15px; border-radius: 8px; text-align: center; border-bottom: 4px solid black;">
-          <h3 style="margin: 0 0 10px 0; color: #212121;">⚫ Preto</h3>
-          <p style="font-size: 28px; font-weight: bold; margin: 0;">${pctPreto}%</p>
-          <small style="color: #666;">Teórico: 46.6%</small>
-        </div>
-
-        <div style="flex: 1; background: #ffffff; border: 1px solid #ddd; padding: 15px; border-radius: 8px; text-align: center; border-bottom: 4px solid gray;">
-          <h3 style="margin: 0 0 10px 0; color: #757575;">⚪ Branco</h3>
-          <p style="font-size: 28px; font-weight: bold; margin: 0;">${pctBranco}%</p>
-          <small style="color: #666;">Teórico: 6.6%</small>
-        </div>
-      </div>
-
-      <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 5px solid #2196f3;">
-        <h3 style="margin-top: 0; color: #0d47a1;">🔥 Radar de Tendência (Maré)</h3>
-        <p style="margin: 5px 0;">Cor dominante: <strong>${tendencia.cor}</strong> (${tendencia.streak}x seguidas)</p>
-        <p style="margin: 5px 0;">Último Branco: <strong>${tendencia.distanciaBranco}</strong></p>
-      </div>
-
-      <h3>Últimas ${total} Jogadas <small style="font-weight: normal; color: #666;">(Passe o mouse nas bolas para ver a hora)</small></h3>
-      <div style="display: flex; gap: 5px; flex-wrap: wrap; background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #eee;">
-        ${data.map((d: any) => `
-          <div class="bola ${d.cor}" title="Data: ${new Date(d.criado_em).toLocaleDateString('pt-BR')} às ${new Date(d.criado_em).toLocaleTimeString('pt-BR')}">
-            ${d.cor[0]}
-          </div>
-        `).join('')}
-      </div>
-    </div>
-  `;
-}
-
-// 4. O Motor (Simulação com as probabilidades reais da Blaze)
-setInterval(() => {
-  const n = Math.random() * 100;
-  let sorteio = '';
-
-  if (n <= 6.67) {
-    sorteio = 'Branco';
-  } else if (n <= 53.33) {
-    sorteio = 'Vermelho';
-  } else {
-    sorteio = 'Preto';
   }
-  
-  registrarJogada(sorteio);
-}, 5000);
 
-// Inicia a primeira renderização
-renderDashboard();
+  // Renderiza Radar de Tendência
+  if (divRadar) {
+    divRadar.innerHTML = `
+      <h3>🔥 Radar de Tendência (Maré)</h3>
+      <p>Cor dominante: <strong>${stats.sequenciaCor.toUpperCase()}</strong> (${stats.sequenciaQtd}x seguidas)</p>
+      <p>Último Branco: <strong>${stats.rodadasSemBranco} rodadas atrás</strong></p>
+    `;
+  }
+
+  // Renderiza o Histórico Visual (Bolas com Números)
+  if (divHistorico) {
+    // Pega as últimas 50 jogadas para não poluir a tela
+    const ultimasJogadas = historico.slice(0, 50);
+    
+    divHistorico.innerHTML = ultimasJogadas.map(jogada => {
+      const corSegura = jogada.cor ? jogada.cor.toLowerCase() : 'desconhecida';
+      const numeroSeguro = jogada.numero || "-";
+      return `<div class="bola-item ${corSegura}">${numeroSeguro}</div>`;
+    }).join('');
+  }
+}
+
+// 5. Comunicação com o Banco de Dados (Supabase)
+async function iniciarSistema() {
+  console.log("Inicializando Dashboard Analítico...");
+
+  try {
+    // Busca o histórico inicial
+    const { data, error } = await supabase
+      .from('historico_jogadas')
+      .select('*')
+      .order('criado_em', { ascending: false })
+      .limit(200);
+
+    if (error) throw error;
+    
+    // Atualiza a tela com os dados iniciais
+    atualizarPainel(data || []);
+
+    // Inscreve-se para atualizações em tempo real (Realtime)
+    supabase.channel('mudancas_historico')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'historico_jogadas' },
+        (payload) => {
+          console.log("Nova jogada recebida do robô!", payload.new);
+          // Recarrega os dados completos para garantir precisão
+          iniciarSistema();
+        }
+      )
+      .subscribe();
+
+  } catch (erro) {
+    console.error("Falha ao carregar dados do Supabase:", erro);
+  }
+}
+
+// Inicia o programa
+iniciarSistema();
