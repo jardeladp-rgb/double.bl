@@ -1,10 +1,25 @@
-<div id="app">
-  <h1>Double Analytics - Visão em Tempo Real</h1>
-  
-  <div id="estatisticas" class="painel-estatisticas"></div>
-  
-  <div id="radar" class="painel-radar"></div>
-  
-  <h2>Últimas Jogadas</h2>
-  <div id="historico-lista" class="historico-grid"></div>
-</div>
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <!-- Isso aqui resolve o problema dos acentos e letras estranhas -->
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Double Analytics</title>
+  </head>
+  <body>
+    <!-- Esta é a "casa" onde o main.ts vai injetar os gráficos -->
+    <div id="app">
+      <h1>Double Analytics - Visão em Tempo Real</h1>
+      
+      <div id="estatisticas" class="painel-estatisticas"></div>
+      
+      <div id="radar" class="painel-radar"></div>
+      
+      <h2>Últimas Jogadas</h2>
+      <div id="historico-lista" class="historico-grid"></div>
+    </div>
+
+    <!-- Chama o seu arquivo TypeScript -->
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
