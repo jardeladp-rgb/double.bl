@@ -1,14 +1,23 @@
-.bola {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  display: inline-flex;
+/* Estilo para cada bolinha do histórico */
+.bola-item {
+  width: 45px;
+  height: 45px;
+  border-radius: 8px; /* BestBlaze usa cantos levemente arredondados, não círculo total */
+  display: flex;
   align-items: center;
   justify-content: center;
-  margin: 5px;
-  color: white;
   font-weight: bold;
+  font-size: 1.1rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  margin: 5px;
 }
-.Vermelho { background-color: #f44336; }
-.Preto { background-color: #212121; }
-.Branco { background-color: #ffffff; color: #000; border: 2px solid #ccc; }
+
+/* Cores específicas */
+.vermelho { background-color: #f44336; color: white; }
+.preto { background-color: #2c2c2c; color: white; }
+.branco { background-color: #ffffff; color: #333; border: 2px solid #ddd; }
+
+/* O número dentro da bola */
+.numero-bola {
+  pointer-events: none;
+}

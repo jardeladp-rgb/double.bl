@@ -11,33 +11,54 @@ async function registrarJogada(cor: string) {
 }
 
 // 2. Função que analisa a sequência (Maré)
-function analisarTendencia(historico: any[]) {
-  if (!historico || historico.length === 0) return { cor: 'Nenhuma', streak: 0, distanciaBranco: 'N/A' };
+function analisarProbabilidades(historico: any[]) {
+  if (historico.length < 5) return { alerta: "Aguardando mais dados..." };
 
-  const ultima = historico[0].cor;
-  let streak = 1;
-
-  for (let i = 1; i < historico.length; i++) {
-    if (historico[i].cor === ultima) streak++;
+  // 1. Identifica a sequência atual
+  const ultimaCor = historico[0].cor;
+  let sequenciaAtual = 0;
+  for (let h of historico) {
+    if (h.cor === ultimaCor) sequenciaAtual++;
     else break;
   }
 
-  const ultimoBranco = historico.findIndex((h: any) => h.cor === 'Branco');
-  
+  // 2. Cálculo de Probabilidade de Quebra (Martingale/Maré)
+  // Baseado na probabilidade real: a chance de uma cor repetir 
+  // muitas vezes diminui exponencialmente.
+  const probQuebra = (1 - Math.pow(0.466, sequenciaAtual)) * 100;
+
+  // 3. Sugestão de Entrada
+  let sugestao = "Aguardar";
+  if (sequenciaAtual >= 3) {
+    const corContraria = ultimaCor === 'Vermelho' ? 'Preto' : 'Vermelho';
+    sugestao = `Possível entrada no ${corContraria} (Quebra de Maré)`;
+  }
+
   return {
-    cor: ultima,
-    streak: streak,
-    distanciaBranco: ultimoBranco === -1 ? 'Não saiu recentemente' : `${ultimoBranco} rodadas atrás`
+    cor: ultimaCor,
+    streak: sequenciaAtual,
+    chanceQuebra: probQuebra.toFixed(1) + "%",
+    sugestao: sugestao
   };
 }
 
-// 3. O NOVO Dashboard Turbinado
-async function renderDashboard() {
-  const { data, error } = await supabase
-    .from('historico_jogadas')
-    .select('cor, criado_em')
-    .order('id', { ascending: false })
-    .limit(100); // Puxando as últimas 100 jogadas
+ // 3. O NOVO Dashboard Turbinado
+function renderDashboard(historico: any[]) {
+  const containerHistorico = document.getElementById('historico-lista');
+  if (!containerHistorico) return;
+
+  containerHistorico.innerHTML = historico.map((jogada: any) => {
+    // Tratamos a cor para evitar erro de undefined
+    const corBase = jogada.cor ? jogada.cor.toLowerCase() : 'branco';
+    const numeroExibido = jogada.numero !== undefined ? jogada.numero : "";
+
+    return `
+      <div class="bola-item ${corBase}">
+        <span class="numero-bola">${numeroExibido}</span>
+      </div>
+    `;
+  }).join('');
+}
 
   if (error || !data) return;
 
